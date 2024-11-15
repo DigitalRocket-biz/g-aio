@@ -1,0 +1,49 @@
+{
+  "name": "google-ads-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "*",
+    "@radix-ui/react-dialog": "*",
+    "@radix-ui/react-select": "*",
+    "autoprefixer": "*",
+    "class-variance-authority": "*",
+    "clsx": "*",
+    "google-ads-api": "^17.1.0-rest-beta",
+    "google-ads-node": "*",
+    "jsforce": "^3.6.2",
+    "lucide-react": "*",
+    "next": "*",
+    "next-auth": "*",
+    "openai": "*",
+    "postcss": "*",
+    "react": "*",
+    "react-dom": "*",
+    "recharts": "*",
+    "tailwind-merge": "*",
+    "tailwindcss": "*",
+    "tailwindcss-animate": "*",
+    "zustand": "*"
+  },
+  "devDependencies": {
+    "@babel/core": "*",
+    "@babel/plugin-transform-runtime": "*",
+    "@babel/preset-env": "*",
+    "@babel/preset-react": "*",
+    "@babel/preset-typescript": "*",
+    "@babel/runtime": "*",
+    "@types/node": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "babel-loader": "*",
+    "prisma": "*",
+    "typescript": "*"
+  }
+}

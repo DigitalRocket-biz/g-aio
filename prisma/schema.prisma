@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Thread {
+  id           String    @id @default(uuid())
+  title        String
+  accountId    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
+  settings     String?
+  lastMessage  String?
+  isStarred    Boolean   @default(false)
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id])
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  metadata  String?
+}
+
+model UserSettings {
+  id           String   @id @default(uuid())
+  theme        String   @default("dark")
+  dateRange    String   @default("last30")
+  refreshRate  Int      @default(300000)
+  lastAccount  String?
+  updatedAt    DateTime @updatedAt
+}
