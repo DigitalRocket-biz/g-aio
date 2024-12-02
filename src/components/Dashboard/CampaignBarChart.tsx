@@ -9,7 +9,7 @@ import {
     Legend
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { LSACampaign } from '@/types/campaign';
+import { Campaign } from '@/types/campaign';
 import { formatCurrency } from '@/utils/format';
 
 ChartJS.register(
@@ -22,7 +22,7 @@ ChartJS.register(
 );
 
 interface CampaignBarChartProps {
-    campaigns: LSACampaign[];
+    campaigns: Campaign[];
 }
 
 export const CampaignBarChart: React.FC<CampaignBarChartProps> = ({ campaigns }) => {
