@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import type { Message } from '@prisma/client';
-import type { Thread } from '../types';
+import type { Thread } from '@/types/thread';
 
 interface ChatState {
     threads: Thread[];
