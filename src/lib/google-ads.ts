@@ -1,5 +1,15 @@
 import { GoogleAdsApi } from 'google-ads-api';
 import { Session } from 'next-auth';
+import { prisma } from '@/lib/db';
+
+export type TrendDirection = 'up' | 'down' | 'stable';
+
+export interface CPCTrend {
+    currentValue: number;
+    previousValue: number;
+    direction: TrendDirection;
+    lastUpdated: string;
+}
 
 interface GoogleAdsCampaign {
     id: string;
@@ -25,8 +35,8 @@ interface GoogleAdsResponse {
     campaign?: {
         id: string;
         name: string;
-        status?: string;
-        bidding_strategy_type?: number;
+        status: string;
+        bidding_strategy_type?: string | number;
         target_cpa?: {
             target_cpa_micros: string | number;
         };
@@ -45,9 +55,30 @@ interface GoogleAdsResponse {
         clicks: string | number;
         conversions: string | number;
         impressions: string | number;
+        conversions_value?: string | number;
     };
     segments?: {
         date: string;
+        conversion_action?: string;
+        conversion_action_name?: string;
+        conversion_action_category?: string;
+    };
+}
+
+interface ConversionActionResponse {
+    campaign?: {
+        id: string;
+        name: string;
+    };
+    segments?: {
+        conversion_action: string;
+        conversion_action_name: string;
+        conversion_action_category: string;
+        date: string;
+    };
+    metrics?: {
+        conversions: string | number;
+        conversions_value: string | number;
     };
 }
 
@@ -70,6 +101,12 @@ interface GoogleAdsSession extends Session {
     accessToken?: string;
 }
 
+export interface ConversionAction {
+    name: string;
+    value: number;
+    category?: string;
+}
+
 export interface Campaign {
     id: string;
     name: string;
@@ -81,10 +118,14 @@ export interface Campaign {
     date: string;
     accountId?: string;
     targetCpa?: number;
-    biddingStrategy?: string;
-    biddingStrategyType?: string;
     targetRoas?: number;
+    biddingStrategyType?: string;
     maximizeConversionValue?: boolean;
+    cpc: number;
+    cpcTrend: CPCTrend;
+    conversionActions: ConversionAction[];
+    previousHourSpend?: number;
+    previousCpc?: number;
 }
 
 export async function getGoogleAdsCustomer(session: GoogleAdsSession, accountId?: string): Promise<any> {
@@ -105,21 +146,88 @@ export async function getCampaignStats(
     dateRange: string
 ): Promise<Campaign[]> {
     try {
+        if (!session?.refreshToken) {
+            console.error('❌ Missing refresh token');
+            return [];
+        }
+
         const customer = await getGoogleAdsCustomer(session, accountId);
+        if (!customer) {
+            console.error('❌ Failed to get Google Ads customer');
+            return [];
+        }
+
         const formattedDateRange = formatDateRange(dateRange);
-        const query = buildCampaignQuery(formattedDateRange);
-        const response = await customer.query(query);
+        const [metricsQuery, conversionQuery] = buildCampaignQueries(formattedDateRange);
 
-        return response.map((row: GoogleAdsResponse) => {
-            if (!row.campaign || !row.metrics || !row.segments) {
-                throw new Error('Invalid response format from Google Ads API');
-            }
+        console.log(`🔍 Fetching campaigns for Account ${accountId}`);
+        console.log(`📅 Using date range: ${formattedDateRange}`);
 
-            return formatCampaignResponse(row, accountId);
-        });
+        // Fetch general metrics
+        const metricsResponse = await customer.query(metricsQuery);
+        console.log('📊 Raw Metrics Response:', JSON.stringify(metricsResponse, null, 2));
+
+        // Fetch conversion actions
+        const conversionResponse = await customer.query(conversionQuery);
+        console.log('📊 Raw Conversion Response:', JSON.stringify(conversionResponse, null, 2));
+
+        if (!Array.isArray(metricsResponse)) {
+            console.warn('⚠️ Invalid metrics response format:', metricsResponse);
+            return [];
+        }
+
+        const conversionMap = new Map<string, Array<{ name: string; value: number; category?: string }>>();
+
+        if (Array.isArray(conversionResponse)) {
+            conversionResponse.forEach((row: ConversionActionResponse) => {
+                if (row.campaign?.id && row.segments?.conversion_action_name) {
+                    const existing = conversionMap.get(row.campaign.id) || [];
+                    existing.push({
+                        name: row.segments.conversion_action_name,
+                        value: Number(row.metrics?.conversions) || 0,
+                        category: row.segments.conversion_action_category
+                    });
+                    conversionMap.set(row.campaign.id, existing);
+                }
+            });
+        }
+
+        const campaigns = metricsResponse
+            .map((row: GoogleAdsResponse) => {
+                try {
+                    if (!row.campaign?.id || !row.campaign?.name) {
+                        console.warn('⚠️ Skipping invalid campaign data:', row);
+                        return null;
+                    }
+                    return formatCampaignResponse(row, accountId, conversionMap.get(row.campaign.id));
+                } catch (formatError) {
+                    console.warn('⚠️ Error formatting campaign:', formatError, row);
+                    return null;
+                }
+            })
+            .map(async (campaign) => {
+                if (campaign === null) return null;
+                return campaign;
+            })
+            .filter((campaign): campaign is Promise<Campaign> => campaign !== null);
+
+        const resolvedCampaigns = await Promise.all(campaigns.filter((c): c is Promise<Campaign> => c !== null));
+        console.log(`✅ Successfully processed ${resolvedCampaigns.length} campaigns`);
+        return resolvedCampaigns;
+
     } catch (error: unknown) {
-        console.error('Google Ads API Error:', error);
-        throw new Error('Failed to fetch campaign stats');
+        console.error('❌ Google Ads API Error:', error);
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+            console.error('Error details:', {
+                message: error.message,
+                name: error.name,
+                cause: error.cause
+            });
+            return [];
+        }
+        console.error('Unknown error type:', error);
+        return [];
     }
 }
 
@@ -142,8 +250,8 @@ function formatDateRange(dateRange: string): string {
     }
 }
 
-function buildCampaignQuery(dateRange: string): string {
-    return `
+function buildCampaignQueries(dateRange: string): [string, string] {
+    const metricsQuery = `
         SELECT 
             campaign.id,
             campaign.name,
@@ -155,12 +263,32 @@ function buildCampaignQuery(dateRange: string): string {
             campaign.maximize_conversions.target_cpa_micros,
             metrics.cost_micros,
             metrics.clicks,
-            metrics.conversions,
             metrics.impressions,
+            metrics.conversions,
+            metrics.conversions_value,
             segments.date
         FROM campaign 
-        WHERE segments.date DURING ${dateRange}
+        WHERE 
+            segments.date DURING ${dateRange}
+            AND campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')
+        ORDER BY campaign.name ASC
     `;
+
+    const conversionQuery = `
+        SELECT
+            campaign.id,
+            campaign.name,
+            segments.conversion_action_name,
+            segments.conversion_action_category,
+            metrics.conversions
+        FROM campaign
+        WHERE
+            segments.date DURING ${dateRange}
+            AND campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')
+        ORDER BY campaign.name ASC
+    `;
+
+    return [metricsQuery, conversionQuery];
 }
 
 function getBiddingStrategyType(type: number): string {
@@ -173,18 +301,19 @@ function getBiddingStrategyType(type: number): string {
     return strategies[type] || 'UNKNOWN';
 }
 
-function formatCampaignResponse(row: GoogleAdsResponse, accountId: string): Campaign {
-    if (!row.campaign?.id || !row.campaign?.name || !row.metrics || !row.segments?.date) {
-        throw new Error('Missing required campaign data');
+async function formatCampaignResponse(
+    row: GoogleAdsResponse,
+    accountId: string,
+    conversionActions?: Array<{ name: string; value: number; category?: string }>
+): Promise<Campaign> {
+    if (!row.campaign || !row.metrics || !row.segments) {
+        throw new Error('Invalid response format: missing required fields');
     }
 
-    const campaign = row.campaign;
-    const metrics = row.metrics;
-    const segments = row.segments;
+    const { campaign, metrics, segments } = row;
 
     const biddingStrategyType = getBiddingStrategyType(Number(campaign.bidding_strategy_type));
-    let targetCpa: number | undefined;
-    let targetRoas: number | undefined;
+    let targetCpa, targetRoas;
 
     switch (biddingStrategyType) {
         case 'TARGET_CPA':
@@ -209,20 +338,72 @@ function formatCampaignResponse(row: GoogleAdsResponse, accountId: string): Camp
             break;
     }
 
+    const status = campaign.status ? String(campaign.status).toLowerCase() : 'unknown';
+    const clicks = Number(metrics.clicks) || 0;
+    const costMicros = Number(metrics.cost_micros) || 0;
+    const cost = costMicros / 1_000_000;
+    const cpc = clicks > 0 ? cost / clicks : 0;
+
+    // Get previous hour's data
+    const previousHourData = await prisma.cPCHistory.findFirst({
+        where: {
+            campaignId: String(campaign.id),
+            timestamp: {
+                gte: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                lt: new Date(Date.now() - 1 * 60 * 60 * 1000)
+            }
+        },
+        orderBy: {
+            timestamp: 'desc'
+        }
+    });
+
+    // Get current hour's average
+    const currentHourData = await prisma.cPCHistory.aggregate({
+        where: {
+            campaignId: String(campaign.id),
+            timestamp: {
+                gte: new Date(Date.now() - 1 * 60 * 60 * 1000)
+            }
+        },
+        _avg: {
+            cpc: true,
+            cost: true
+        }
+    });
+
+    const currentHourCPC = currentHourData._avg.cpc || cpc;
+    const previousHourCPC = previousHourData?.cpc || currentHourCPC;
+
+    const cpcTrend = {
+        currentValue: currentHourCPC,
+        previousValue: previousHourCPC,
+        direction: previousHourData ?
+            (currentHourCPC > previousHourCPC ? 'up' :
+                currentHourCPC < previousHourCPC ? 'down' : 'stable') as TrendDirection :
+            'stable' as TrendDirection,
+        lastUpdated: new Date().toISOString()
+    };
+
     return {
-        id: campaign.id,
-        name: campaign.name,
-        status: campaign.status?.toString().toLowerCase() || 'unknown',
-        cost: Number(metrics.cost_micros) / 1_000_000,
-        clicks: Number(metrics.clicks),
-        conversions: Number(metrics.conversions),
-        impressions: Number(metrics.impressions),
-        date: segments.date,
+        id: String(campaign.id),
+        name: String(campaign.name),
+        status,
+        cost,
+        clicks,
+        conversions: Number(metrics.conversions) || 0,
+        impressions: Number(metrics.impressions) || 0,
+        date: String(segments.date),
         accountId,
         targetCpa,
         targetRoas,
         biddingStrategyType,
-        maximizeConversionValue: biddingStrategyType === 'MAXIMIZE_CONVERSION_VALUE'
+        maximizeConversionValue: biddingStrategyType === 'MAXIMIZE_CONVERSION_VALUE',
+        cpc,
+        cpcTrend,
+        previousHourSpend: previousHourData?.cost || cost,
+        conversionActions: conversionActions || [],
+        previousCpc: previousHourData?.cpc || cpc
     };
 }
 
@@ -254,5 +435,67 @@ export async function getAccountInfo(session: GoogleAdsSession, accountId: strin
     } catch (error: unknown) {
         console.error('Google Ads API Error:', error);
         throw new Error('Failed to fetch account info');
+    }
+}
+
+export async function calculateCPCTrend(campaignId: string, currentCPC: number): Promise<CPCTrend> {
+    try {
+        const response = await fetch(`/api/campaigns/cpc-history?campaignId=${campaignId}&hours=1`);
+        const history = await response.json();
+
+        const previousCPC = history[0]?.cpc ?? currentCPC;
+        const direction: TrendDirection =
+            currentCPC > previousCPC ? 'up' :
+                currentCPC < previousCPC ? 'down' :
+                    'stable';
+
+        return {
+            currentValue: currentCPC,
+            previousValue: previousCPC,
+            direction,
+            lastUpdated: new Date().toISOString()
+        };
+    } catch (error) {
+        return {
+            currentValue: currentCPC,
+            previousValue: currentCPC,
+            direction: 'stable',
+            lastUpdated: new Date().toISOString()
+        };
+    }
+}
+
+export async function storeCPCHistory(
+    campaignId: string,
+    accountId: string,
+    cpc: number,
+    cost: number
+): Promise<void> {
+    if (!campaignId || !accountId) return;
+
+    try {
+        // Store data point
+        await prisma.cPCHistory.create({
+            data: {
+                campaignId,
+                accountId,
+                cpc,
+                cost,
+                timestamp: new Date()
+            }
+        });
+
+        // Clean up old data points (keep last 24 hours only)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await prisma.cPCHistory.deleteMany({
+            where: {
+                campaignId,
+                timestamp: {
+                    lt: twentyFourHoursAgo
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error storing CPC history:', error);
     }
 }

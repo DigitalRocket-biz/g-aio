@@ -3,38 +3,38 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
-    swcMinify: true,
-    images: {
-        domains: ['localhost'],
-    },
-    env: {
-        NEXT_PUBLIC_APP_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
-    },
-    typescript: {
-        ignoreBuildErrors: false,
-    },
+    transpilePackages: [
+        'antd',
+        '@ant-design/icons',
+        '@ant-design/icons-svg',
+        'rc-util',
+        'rc-pagination',
+        'rc-picker',
+        'rc-table',
+        'rc-tree',
+        'rc-select',
+        'rc-cascader',
+        'rc-checkbox',
+        'rc-dropdown',
+        'rc-menu',
+        'rc-input',
+        'rc-input-number',
+        'rc-motion',
+        'rc-notification',
+        'rc-tooltip',
+        'rc-tree-select',
+        '@ant-design/cssinjs',
+        '@ant-design/colors',
+        '@ant-design/react-slick',
+        '@ant-design/pro-layout',
+        '@ant-design/pro-utils',
+        '@ant-design/pro-provider',
+    ],
     webpack: (config) => {
-        config.resolve.fallback = { fs: false };
-        config.module.rules = [
-            ...config.module.rules,
-            {
-                test: /\.(tsx|ts|js|mjs|jsx)$/,
-                exclude: /node_modules\/(?!next-auth)/,
-                use: {
-                    loader: 'babel-loader',
-                    options: {
-                        presets: [
-                            ['@babel/preset-env', { targets: "defaults" }],
-                            '@babel/preset-react',
-                            '@babel/preset-typescript'
-                        ],
-                        plugins: ['@babel/plugin-transform-runtime']
-                    }
-                }
-            }
-        ];
-        config.resolve.extensions = ['.tsx', '.ts', '.js', '.jsx', ...config.resolve.extensions];
-        return config;
+        config.resolve.extensionAlias = {
+            '.js': ['.js', '.ts', '.tsx']
+        }
+        return config
     }
 }
 

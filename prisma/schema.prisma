@@ -37,3 +37,27 @@ model UserSettings {
   lastAccount  String?
   updatedAt    DateTime @updatedAt
 }
+
+model CPCHistory {
+    id          String   @id @default(cuid())
+    campaignId  String
+    accountId   String
+    cpc         Float
+    cost        Float
+    timestamp   DateTime @default(now())
+
+    @@index([campaignId, timestamp])
+    @@index([accountId, timestamp])
+}
+
+model ScriptExecution {
+    id            String   @id @default(cuid())
+    script        String
+    accountId     String
+    success       Boolean  @default(false)
+    error         String?
+    result        String?
+    executionDate DateTime @default(now())
+
+    @@index([accountId, executionDate])
+}

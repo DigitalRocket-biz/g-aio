@@ -1,108 +1,75 @@
 // src/hooks/useCampaigns.ts
 
-import { useEffect, useState } from 'react';
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback } from 'react';
+import { Campaign } from '@/types/campaign';
+import { useSettings } from '@/store/settings';
+import type { LSAMetrics } from '@/types/lsa';
 
-interface Campaign {
-    id: string;
-    name: string;
-    status: 'enabled';
-    budget: number;
-    clicks: number;
-    impressions: number;
-    conversions: number;
-    cost: number;
-    accountId?: string;
-}
-
-interface CampaignState {
+interface UseCampaignsReturn {
     campaigns: Campaign[];
     loading: boolean;
     error: string | null;
     dateRange: string;
-    selectedAccounts: string[];
     setDateRange: (range: string) => void;
+    selectedAccounts: string[];
     setSelectedAccounts: (accounts: string[]) => void;
-    setCampaigns: (campaigns: Campaign[]) => void;
-    setError: (error: string | null) => void;
-    setLoading: (loading: boolean) => void;
+    refresh: (isLSAEnabled?: boolean) => Promise<void>;
+    lsaMetrics: LSAMetrics | null;
 }
 
-export const useCampaignStore = create<CampaignState>()(
-    persist(
-        (set) => ({
-            campaigns: [],
-            loading: false,
-            error: null,
-            dateRange: 'TODAY',
-            selectedAccounts: [],
-            setDateRange: (range) => set({ dateRange: range }),
-            setSelectedAccounts: (accounts) => {
-                set({ selectedAccounts: accounts });
-            },
-            setCampaigns: (campaigns) => set({ campaigns }),
-            setError: (error) => set({ error }),
-            setLoading: (loading) => set({ loading })
-        }),
-        {
-            name: 'campaign-store',
-            skipHydration: true
-        }
-    )
-);
+export function useCampaigns(): UseCampaignsReturn {
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [lsaMetrics, setLsaMetrics] = useState<LSAMetrics | null>(null);
+    const { selectedAccounts: savedAccounts, dateRange: savedDateRange } = useSettings();
+    const [dateRange, setDateRange] = useState(savedDateRange || 'TODAY');
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>(savedAccounts || []);
 
-export const useCampaigns = () => {
-    const store = useCampaignStore();
-    const router = useRouter();
-
-    const fetchCampaigns = async (bypassCheck = false) => {
-        if (!bypassCheck && (!store.selectedAccounts || store.selectedAccounts.length === 0)) {
-            store.setError('Please select at least one account.');
-            return;
-        }
-
+    const refresh = useCallback(async (isLSAEnabled?: boolean) => {
         try {
-            store.setLoading(true);
-            store.setError(null);
+            setLoading(true);
+            setError(null);
+
             const response = await fetch('/api/campaigns', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({
-                    dateRange: store.dateRange,
-                    accountIds: store.selectedAccounts || [],
-                    bypassCheck: bypassCheck
-                })
+                    dateRange,
+                    accountIds: selectedAccounts,
+                    isLSAEnabled,
+                }),
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                if (response.status === 401) {
-                    router.push('/auth/signin');
-                    return;
-                }
-                throw new Error(error.error);
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to fetch campaigns');
             }
 
             const data = await response.json();
-            store.setCampaigns(data);
-        } catch (error: any) {
-            store.setError(error.message);
+            setCampaigns(data.campaigns);
+            setLsaMetrics(data.lsaMetrics);
+        } catch (err: any) {
+            console.error('Error fetching campaigns:', err);
+            setError(err.message || 'Failed to fetch campaigns');
+            setCampaigns([]);
+            setLsaMetrics(null);
         } finally {
-            store.setLoading(false);
+            setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchCampaigns();
-        const interval = setInterval(() => fetchCampaigns(), 5 * 60 * 1000);
-        return () => clearInterval(interval);
-    }, [store.dateRange, store.selectedAccounts]);
+    }, [dateRange, selectedAccounts]);
 
     return {
-        ...store,
-        refresh: fetchCampaigns,
-        refreshWithBypass: () => fetchCampaigns(true)
+        campaigns,
+        loading,
+        error,
+        dateRange,
+        setDateRange,
+        selectedAccounts,
+        setSelectedAccounts,
+        refresh,
+        lsaMetrics,
     };
-};
+}

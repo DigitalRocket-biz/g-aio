@@ -1,6 +1,7 @@
 // src/lib/openai.ts
 
 import OpenAI from 'openai';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -22,7 +23,7 @@ Example queries you can handle:
 Format your responses with clear headings and metrics when presenting data.`;
 
 export async function chatCompletion(
-    messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+    messages: ChatCompletionMessageParam[],
     threadContext?: { accountId?: string; dateRange?: string }
 ) {
     try {
@@ -31,7 +32,7 @@ export async function chatCompletion(
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 ...(threadContext ? [{
-                    role: 'system',
+                    role: 'system' as const,
                     content: `Current context: Account ${threadContext.accountId}, Date range: ${threadContext.dateRange}`
                 }] : []),
                 ...messages
