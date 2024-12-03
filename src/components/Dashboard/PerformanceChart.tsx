@@ -11,7 +11,7 @@ interface ClientChartProps {
 }
 
 const ClientSideChart = dynamic(
-    () => import('@/components/Dashboard/ClientChart'),
+    () => import('@/components/dashboard/ClientChart'),
     { ssr: false }
 ) as React.ComponentType<ClientChartProps>;
 
