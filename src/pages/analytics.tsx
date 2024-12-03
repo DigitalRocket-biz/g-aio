@@ -310,7 +310,7 @@ const Analytics = () => {
                 <div className="p-4 bg-gray-700/50 rounded-lg">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-gray-300">Cost Efficiency Trend</span>
-                    <span className={`font-medium ${metrics.cplGrowth > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    <span className={`font-medium ${Number(metrics.cplGrowth) > 0 ? 'text-red-400' : 'text-green-400'}`}>
                       {metrics.cplGrowth}% change
                     </span>
                   </div>
