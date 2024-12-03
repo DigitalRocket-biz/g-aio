@@ -1,4 +1,4 @@
-// src/components/Dashboard/PerformanceChart.tsx
+// src/components/dashboard/PerformanceChart.tsx
 
 import React from 'react';
 import dynamic from 'next/dynamic';
@@ -11,7 +11,7 @@ interface ClientChartProps {
 }
 
 const ClientSideChart = dynamic(
-    () => import('@/components/dashboard/ClientChart'),
+    () => import('./ClientChart'),
     { ssr: false }
 ) as React.ComponentType<ClientChartProps>;
 
