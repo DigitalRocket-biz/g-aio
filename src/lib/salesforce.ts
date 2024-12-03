@@ -1,11 +1,11 @@
-import jsforce from 'jsforce';
+import * as jsforce from 'jsforce';
 
-export async function getSalesforceConnection() {
-    const conn = new jsforce.Connection({
-        loginUrl: 'https://login.salesforce.com',
-        version: '57.0'
-    });
+const conn = new jsforce.Connection({
+    loginUrl: 'https://login.salesforce.com',
+    version: '57.0'
+});
 
+export async function getSalesforceConnection(): Promise<jsforce.Connection> {
     if (!process.env.SALESFORCE_USERNAME || !process.env.SALESFORCE_PASSWORD || !process.env.SALESFORCE_SECURITY_TOKEN) {
         throw new Error('Missing Salesforce credentials in environment variables');
     }
@@ -20,7 +20,15 @@ export async function getSalesforceConnection() {
 
 export async function getTotalAccounts(): Promise<number> {
     try {
-        const conn = await getSalesforceConnection();
+        if (!process.env.SALESFORCE_USERNAME || !process.env.SALESFORCE_PASSWORD || !process.env.SALESFORCE_SECURITY_TOKEN) {
+            throw new Error('Missing Salesforce credentials in environment variables');
+        }
+
+        await conn.login(
+            process.env.SALESFORCE_USERNAME,
+            `${process.env.SALESFORCE_PASSWORD}${process.env.SALESFORCE_SECURITY_TOKEN}`
+        );
+
         const result = await conn.query(
             `SELECT COUNT() FROM Account WHERE Name LIKE '%Harvest Insurance%'`
         );
@@ -35,7 +43,15 @@ export async function getTotalAccounts(): Promise<number> {
 
 export async function getTodayNewAccounts(): Promise<number> {
     try {
-        const conn = await getSalesforceConnection();
+        if (!process.env.SALESFORCE_USERNAME || !process.env.SALESFORCE_PASSWORD || !process.env.SALESFORCE_SECURITY_TOKEN) {
+            throw new Error('Missing Salesforce credentials in environment variables');
+        }
+
+        await conn.login(
+            process.env.SALESFORCE_USERNAME,
+            `${process.env.SALESFORCE_PASSWORD}${process.env.SALESFORCE_SECURITY_TOKEN}`
+        );
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 

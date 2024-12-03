@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Sidebar } from './Sidebar';
-import { ChatWidget } from '../Chat/ChatWidget';
+import { ChatWidget } from '../chat/ChatWidget';
 
 interface MainLayoutProps {
     children: React.ReactNode;
