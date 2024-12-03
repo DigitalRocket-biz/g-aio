@@ -1,5 +1,6 @@
 // src/components/ui/Card.tsx
 
+import { cn } from '@/utils';
 import React from 'react';
 
 interface CardProps {
@@ -24,3 +25,17 @@ export const CardContent = ({ children, className = '' }: CardProps) => (
     {children}
   </div>
 );
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+export { CardTitle }
