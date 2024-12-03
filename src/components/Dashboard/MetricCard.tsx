@@ -1,4 +1,4 @@
-// src/components/Dashboard/MetricCard.tsx
+// src/components/dashboard/MetricCard.tsx
 
 import React from 'react';
 import { Card } from '@/components/ui';
