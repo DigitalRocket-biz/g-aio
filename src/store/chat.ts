@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const response = await chatCompletion(messages, {
-            accountId: thread.accountId,
+            accountId: thread.accountId ?? undefined,
             dateRange: 'LAST_30_DAYS' // Can be made dynamic
         });
 
@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             data: {
                 threadId,
                 role: 'assistant',
-                content: response.content
+                content: response.content ?? ''
             }
         });
 

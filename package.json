@@ -20,6 +20,7 @@
     "chart.js": "^4.4.1",
     "class-variance-authority": "*",
     "clsx": "*",
+    "date-fns": "^4.1.0",
     "google-ads-api": "^17.1.0-rest-beta",
     "google-ads-node": "*",
     "jsforce": "^3.6.2",
