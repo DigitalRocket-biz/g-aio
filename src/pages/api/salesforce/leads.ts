@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import jsforce from 'jsforce';
-export const runtime = 'edge';
 
 // Update the interface to match the actual Salesforce report response
 interface FactMap {
