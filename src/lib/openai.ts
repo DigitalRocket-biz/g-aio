@@ -5,6 +5,8 @@ import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
+    maxRetries: 3,
+    timeout: 30000
 });
 
 const SYSTEM_PROMPT = `You are an expert Google Ads assistant. You have access to the following ad accounts:
